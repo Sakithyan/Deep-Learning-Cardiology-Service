@@ -215,3 +215,12 @@ __marimo__/
 data/
 *.npy
 *.txt
+*.tsv
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Environnement virtuel (si tu en as un)
+.venv/
+venv/
