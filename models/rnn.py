@@ -3,13 +3,16 @@ from tensorflow.keras import layers, models
 
 def build_rnn(input_shape):
     inputs = layers.Input(shape=input_shape)
+    x = layers.LSTM(24, return_sequences=False, name="LSTM_Layer")(inputs)
+    x = layers.Dropout(0.5, name="Dropout_Layer")(x)
+    outputs = layers.Dense(1, activation='sigmoid', name="Output_Layer")(x)
+    model = models.Model(inputs=inputs, outputs=outputs, name="RNN_LSTM_Cardio")
 
-    # MODIFIER/SUPPRIMER ICI : Ajoutez vos couches cachées selon votre architecture RNN
-    #RAPPEL : LE PROF VEUX DU FONCTIONNEL PAS DU SÉQUENTIEL
-    x = layers.SimpleRNN(1)(inputs) # Exemple minimal
-    # ------------------------------
-
-    outputs = layers.Dense(1, activation='sigmoid')(x)
-    model = models.Model(inputs, outputs, name="RNN")
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model.compile(
+        optimizer='adam', 
+        loss='binary_crossentropy', 
+        metrics=['accuracy']
+    )
+    
     return model
+
