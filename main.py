@@ -3,6 +3,7 @@ from core.data_loader import load_ecg_dataset
 from models.mlp import build_mlp
 from models.cnn import build_cnn
 from models.rnn import build_rnn
+import argparse
 import os
 import numpy as np
 import matplotlib
@@ -33,8 +34,10 @@ def _plot_training_curves(history, model_type, output_dir):
     ax2.grid(True)
 
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{model_type}_training_curves.png"), dpi=150)
+    graph_path = os.path.join(output_dir, f"{model_type}_training_curves.png")
+    fig.savefig(graph_path, dpi=150)
     plt.close(fig)
+    return graph_path
 
 def _plot_confusion_matrix(y_true, y_pred, model_type, output_dir):
     cm = np.zeros((2, 2), dtype=int)
@@ -59,8 +62,10 @@ def _plot_confusion_matrix(y_true, y_pred, model_type, output_dir):
 
     fig.colorbar(im, ax=ax)
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{model_type}_confusion_matrix.png"), dpi=150)
+    graph_path = os.path.join(output_dir, f"{model_type}_confusion_matrix.png")
+    fig.savefig(graph_path, dpi=150)
     plt.close(fig)
+    return graph_path
 
 def _plot_score_distribution(y_true, y_prob, model_type, output_dir):
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -72,10 +77,21 @@ def _plot_score_distribution(y_true, y_prob, model_type, output_dir):
     ax.legend()
     ax.grid(True)
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, f"{model_type}_score_distribution.png"), dpi=150)
+    graph_path = os.path.join(output_dir, f"{model_type}_score_distribution.png")
+    fig.savefig(graph_path, dpi=150)
     plt.close(fig)
+    return graph_path
 
-def run_experiment(model_type="mlp"):
+def _open_graphs(graph_paths):
+    if not hasattr(os, "startfile"):
+        return
+    for graph_path in graph_paths:
+        try:
+            os.startfile(os.path.abspath(graph_path))
+        except OSError:
+            pass
+
+def run_experiment(model_type="mlp", show_graphs=False):
     # 1. Chargement des données
     # True si CNN/RNN (3D), False si MLP (2D)
     is_3d = True if model_type in ["cnn", "rnn"] else False
@@ -106,15 +122,22 @@ def run_experiment(model_type="mlp"):
     y_pred = (y_prob >= 0.5).astype(int)
 
     output_dir = _ensure_output_dir()
-    _plot_training_curves(history, model_type, output_dir)
-    _plot_confusion_matrix(y_test, y_pred, model_type, output_dir)
-    _plot_score_distribution(y_test, y_prob, model_type, output_dir)
+    graph_paths = []
+    graph_paths.append(_plot_training_curves(history, model_type, output_dir))
+    graph_paths.append(_plot_confusion_matrix(y_test, y_pred, model_type, output_dir))
+    graph_paths.append(_plot_score_distribution(y_test, y_prob, model_type, output_dir))
+
+    if show_graphs:
+        _open_graphs(graph_paths)
 
     print(f"Result {model_type} - Accuracy: {acc:.4f}")
     print(f"Graphs saved in {output_dir}")
+    for graph_path in graph_paths:
+        print(graph_path)
 
 if __name__ == "__main__":
-    # Décommenter le modèle à tester
-     run_experiment("mlp")
-    # run_experiment("cnn")
-    # run_experiment("rnn")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", choices=["mlp", "cnn", "rnn"], default="cnn")
+    parser.add_argument("--show-graphs", action="store_true")
+    args = parser.parse_args()
+    run_experiment(args.model, show_graphs=args.show_graphs)
