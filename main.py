@@ -1,95 +1,126 @@
+import time
+import os
 import matplotlib.pyplot as plt
 import numpy as np
+import tensorflow as tf
 from core.data_loader import load_ecg_dataset
-from models.mlp import build_mlp
-from models.cnn import build_cnn
-from models.rnn import build_rnn
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, mean_squared_error
+from models.rnn import build_rnn_final as build_rnn
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.decomposition import PCA
-import time
+# Imports des différents modèles
+from models.rnn import build_rnn_final as build_rnn
+# from models.cnn import build_cnn_final as build_cnn  # À décommenter quand tu les auras
+# from models.mlp import build_mlp_final as build_mlp
 
-def run_experiment(model_type="mlp"):
-    # 1. Configuration des hyperparamètres selon le modèle
-    # On suit les consignes du TP LSTM pour le RNN
-    if model_type == "rnn":
-        epochs = 2000
-        batch_size = 256
-        is_3d = True
-    else:
-        epochs = 100 
-        batch_size = 16
-        is_3d = (model_type == "cnn")
-
-    # 2. Chargement des données
+def run_simple_experiment(model_type="RNN"):
+    print(f"\n>>> DEMARRAGE DE L'EXPERIENCE : {model_type} <<<")
+    
+    # ADAPTATION DES DONNÉES
+    # Le RNN et CNN ont besoin de 3D (batch, temps, 1), le MLP de 2D (batch, temps)
+    is_3d = True if model_type in ["RNN", "CNN"] else False
     x_train, x_test, y_train, y_test = load_ecg_dataset(is_3d=is_3d)
+
+    #CONSTRUCTION DU MODÈLE
+    if model_type == "RNN":
+        model = build_rnn(input_shape=x_train.shape[1:])
+        layer_for_pca = "LSTM_Layer" # Nom de la couche pour la PCA
+    elif model_type == "CNN":
+        # model = build_cnn(input_shape=x_train.shape[1:])
+        layer_for_pca = "Conv_Final"
+        pass 
+    elif model_type == "MLP":
+        # model = build_mlp(input_shape=x_train.shape[1:])
+        layer_for_pca = "Dense_Hidden"
+        pass
+
+    model.summary()
+
+    # ENTRAÎNEMENT 
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss', 
+        patience=15, 
+        restore_best_weights=True 
+    )
+
+    print(">>> Debut de l'entrainement...")
+    start_train = time.time()
+    history = model.fit(
+        x_train, y_train,
+        epochs=500,
+        batch_size=32,
+        validation_split=0.2, 
+        callbacks=[early_stop],
+        verbose=1
+    )
+    training_duration = time.time() - start_train
+
+    # SAUVEGARDE ET COMPLEXITÉ 
+    # Sauvegarde pour la mesure de taille (contrainte vieux PC)
+    model_path = 'best_rnn_model.h5'
+    model.save(model_path)
+    model_size_kb = os.path.getsize(model_path) / 1024
+
+    # Mesure du temps d'inférence (vitesse de diagnostic)
+    start_inf = time.time()
+    y_probs = model.predict(x_test, verbose=0)
+    inference_time_ms = ((time.time() - start_inf) / len(x_test)) * 1000
+
+    # ÉVALUATION FINALE 
+    print("\n" + "="*40)
+    print("RAPPORT TECHNIQUE POUR LA CLINIQUE")
+    loss, accuracy, recall = model.evaluate(x_test, y_test, verbose=0)
+    print(f"Precision (Accuracy) : {accuracy*100:.2f}%")
+    print(f"Securité (Recall)    : {recall*100:.2f}%")
+    print(f"Nombre de parametres : {model.count_params()}")
+    print(f"Taille du modele    : {model_size_kb:.2f} Ko")
+    print(f"Temps d'inference   : {inference_time_ms:.4f} ms/ECG")
+    print("="*40)
+
+    # VISUALISATIONS
     
-    # 3. Construction du modèle
-    input_shape = x_train.shape[1:]
-    if model_type == "mlp":
-        model = build_mlp(input_shape)
-    elif model_type == "cnn":
-        model = build_cnn(input_shape)
-    elif model_type == "rnn":
-        model = build_rnn(input_shape)
-
-    # 4. Entraînement avec mesure du temps 
-    start_time = time.time()
-    history = model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, 
-                        validation_split=0.2, verbose=1)
-    train_time = time.time() - start_time
-
-    # 5. Affichage des courbes Accuracy/Loss 
-    plt.figure(figsize=(12, 4))
+    # Graphique de la perte (Loss)
     plt.subplot(1, 2, 1)
-    plt.plot(history.history['accuracy'], label='Train')
-    plt.plot(history.history['val_accuracy'], label='Val')
-    plt.title(f'Accuracy - {model_type}')
+    plt.plot(history.history['loss'], label='Train Loss')
+    plt.plot(history.history['val_loss'], label='Val Loss')
+    plt.title('Evolution de la Perte (Loss)')
     plt.legend()
-    
+
+    # Graphique de la précision (Accuracy)
     plt.subplot(1, 2, 2)
-    plt.plot(history.history['loss'], label='Train')
-    plt.plot(history.history['val_loss'], label='Val')
-    plt.title(f'Loss - {model_type}')
+    plt.plot(history.history['accuracy'], label='Train Acc')
+    plt.plot(history.history['val_accuracy'], label='Val Acc')
+    plt.title('Evolution de la Précision (Accuracy)')
     plt.legend()
+
     plt.show()
 
-    # 6. Évaluation et Étude de complexité
-    loss, acc = model.evaluate(x_test, y_test, verbose=0)
-    print(f"\n--- RAPPORT {model_type.upper()} ---")
-    print(f"Accuracy: {acc:.4f}")
-    print(f"Temps d'entraînement: {train_time:.2f}s")
-    print(f"Nombre de paramètres: {model.count_params()}")
+    # B. Matrice de Confusion (Interprétation Clinique)
+    # Seuil à 0.5 car sortie Sigmoid
+    y_pred = (y_probs > 0.5).astype(int)
+    ax = plt.subplot(1, 2, 1)
+    cm = confusion_matrix(y_test, y_pred, normalize='true')
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Infarctus', 'Normal'])
+    disp.plot(ax=ax, cmap=plt.cm.Blues, values_format='.2f')
+    plt.title("Matrice de Confusion")
 
-    # 7. Analyses spécifiques au RNN/LSTM
-    if model_type == "rnn":
-        # Matrice de Confusion 
-        y_pred = (model.predict(x_test) > 0.5).astype("int32")
-        cm = confusion_matrix(y_test, y_pred)
-        ConfusionMatrixDisplay(cm).plot()
-        plt.title("Matrice de Confusion RNN")
-        plt.show()
+    # C. PCA (Visualisation de l'Espace Latent)
+    plt.subplot(1, 2, 2)
+    try:
+        # On extrait les caractéristiques de la couche LSTM 
+        feat_extractor = tf.keras.models.Model(inputs=model.input, outputs=model.get_layer("LSTM_Layer").output)
+        features = feat_extractor.predict(x_train, verbose=0)
+        
+        pca = PCA(n_components=2)
+        pca_result = pca.fit_transform(features)
+        
+        plt.scatter(pca_result[:, 0], pca_result[:, 1], c=y_train, cmap='coolwarm', edgecolors='k', alpha=0.7)
+        plt.title("Espace Latent (PCA)")
+        plt.colorbar(label="0: Infarctus, 1: Normal")
+    except Exception as e:
+        print(f"\nNote: PCA échouée (vérifiez le nom de la couche LSTM). Erreur: {e}")
 
-        # Mesure RMSE (Demandé dans le cours pour les séries temporelles)
-        # RMSE = racine de la moyenne des erreurs au carré
-        test_predict = model.predict(x_test)
-        rmse = np.sqrt(mean_squared_error(y_test, test_predict))
-        print(f"RMSE (Performance prédiction): {rmse:.4f}")
-
-        # Analyse PCA 
-        # On utilise le nom de la couche défini dans rnn.py
-        try:
-            from tensorflow.keras.models import Model
-            feature_extractor = Model(inputs=model.input, 
-                                      outputs=model.get_layer("LSTM_Layer").output)
-            features = feature_extractor.predict(x_train)
-            pca = PCA(n_components=2)
-            components = pca.fit_transform(features)
-            plt.scatter(components[:, 0], components[:, 1], c=y_train, cmap='coolwarm')
-            plt.title("PCA des caractéristiques LSTM")
-            plt.show()
-        except:
-            print("Note: Nom de couche LSTM_Layer non trouvé pour la PCA.")
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
-    # Il suffit de changer le nom ici pour comparer
-    run_experiment("rnn")
+    run_simple_experiment()
