@@ -2,16 +2,8 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 
 
-def _compile(model):
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-        loss="binary_crossentropy",
-        metrics=["accuracy"],
-    )
-    return model
-
-
 def build_cnn_naive(input_shape):
+    # Version simple (baseline)
     inputs = layers.Input(shape=input_shape)
 
     x = layers.Conv1D(filters=16, kernel_size=5, padding="same", activation="relu")(inputs)
@@ -21,10 +13,16 @@ def build_cnn_naive(input_shape):
 
     outputs = layers.Dense(1, activation="sigmoid")(x)
     model = models.Model(inputs, outputs, name="CNN_NAIVE")
-    return _compile(model)
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
 
 
 def build_cnn_regularized(input_shape):
+    # Version avec regulation pour limiter l'overfitting
     inputs = layers.Input(shape=input_shape)
 
     x = layers.Conv1D(
@@ -54,7 +52,14 @@ def build_cnn_regularized(input_shape):
 
     outputs = layers.Dense(1, activation="sigmoid")(x)
     model = models.Model(inputs, outputs, name="CNN_REGULARIZED")
-    return _compile(model)
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
+    )
+    return model
+
 
 def build_cnn(input_shape):
+    # Par defaut on garde la version regularized
     return build_cnn_regularized(input_shape)
