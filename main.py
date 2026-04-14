@@ -1,5 +1,18 @@
 import time
 import os
+import random
+import warnings
+
+# Suppression des messages TensorFlow avant son import
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+import logging
+logging.getLogger('tensorflow').setLevel(logging.ERROR)
+warnings.filterwarnings('ignore')
+
+import matplotlib
+matplotlib.use('Agg')  # Backend sans affichage
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -122,6 +135,80 @@ def run_mlp_experiment(mlp_builder, model_name, show_prediction_curve=False):
         'size_kb': model_size_kb,
         'inference_time_ms': inference_time_ms
     }
+
+
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+
+
+def run_mlp_repeat_experiment(builder, label, seeds=None, epochs=500, batch_size=32):
+    if seeds is None:
+        seeds = [42, 43, 44, 45, 46]
+
+    results = []
+    print(f"\n>>> DEMARRAGE DU TEST REPETE: {label} <<<")
+
+    for index, seed in enumerate(seeds, start=1):
+        print(f"Run {index}/{len(seeds)} - seed={seed}")
+        set_global_seed(seed)
+
+        x_train, x_test, y_train, y_test = load_ecg_dataset(is_3d=False)
+        model = builder(input_shape=x_train.shape[1:])
+
+        start_train = time.time()
+        history = model.fit(
+            x_train, y_train,
+            epochs=epochs,
+            batch_size=batch_size,
+            validation_split=0.2,
+            callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)],
+            verbose=0
+        )
+        train_time = time.time() - start_train
+
+        model_path = f'best_{label}_seed{seed}.h5'
+        model.save(model_path)
+        model_size_mb = os.path.getsize(model_path) / 1024 / 1024
+
+        start_inf = time.time()
+        y_probs = model.predict(x_test, verbose=0)
+        infer_time_ms = ((time.time() - start_inf) / len(x_test)) * 1000
+
+        evaluation = model.evaluate(x_test, y_test, verbose=0)
+        loss = evaluation[0]
+        accuracy = evaluation[1] if len(evaluation) > 1 else None
+
+        print(f"{label}: acc={accuracy:.4f} | loss={loss:.4f} | train={train_time:.2f}s | infer/sample={infer_time_ms:.3f}ms")
+
+        results.append({
+            'seed': seed,
+            'accuracy': accuracy,
+            'loss': loss,
+            'train_time': train_time,
+            'infer_time_ms': infer_time_ms,
+            'params': model.count_params(),
+            'size_mb': model_size_mb
+        })
+
+    metrics = {
+        'accuracy': np.array([r['accuracy'] for r in results], dtype=np.float32),
+        'loss': np.array([r['loss'] for r in results], dtype=np.float32),
+        'train_time': np.array([r['train_time'] for r in results], dtype=np.float32),
+        'infer_time_ms': np.array([r['infer_time_ms'] for r in results], dtype=np.float32),
+        'params': results[0]['params'] if results else None,
+        'size_mb': np.array([r['size_mb'] for r in results], dtype=np.float32)
+    }
+
+    print("\nSummary (mean +- std):")
+    print(f"- {label}: acc={metrics['accuracy'].mean():.4f} +- {metrics['accuracy'].std():.4f}, "
+          f"loss={metrics['loss'].mean():.4f} +- {metrics['loss'].std():.4f}, "
+          f"train={metrics['train_time'].mean():.2f} +- {metrics['train_time'].std():.2f}s, "
+          f"infer={metrics['infer_time_ms'].mean():.3f} +- {metrics['infer_time_ms'].std():.3f}ms/sample, "
+          f"params={metrics['params']}, size={metrics['size_mb'].mean():.4f}MB")
+
+    return results
 
 
 def run_simple_experiment(model_type="MLP"):
@@ -289,22 +376,32 @@ def plot_mlp_final_prediction_curve(y_probs, y_test):
     print("="*60)
 
 if __name__ == "__main__":
-    # Tester tous les MLP et ne tracer les prédictions que pour le MLP final
-    results = []
+    print("\n" + "="*60)
+    print("EXPERIENCES MLP: 5 RUNS AVEC SEEDS FIXES")
+    print("="*60)
+
+    seeds = [42, 43, 44, 45, 46]
+    run_mlp_repeat_experiment(build_mlp_v1, "naive", seeds=seeds)
+    run_mlp_repeat_experiment(build_mlp_v2, "regularized", seeds=seeds)
+
+    print("\n" + "="*60)
+    print("FIN DES EXPERIENCES REPETEES")
+    print("="*60)
 
     print("\n" + "="*60)
     print("EXPERIENCES MLP: ANALYSE POUR TOUS LES ALGORITHMES")
     print("="*60)
 
-    # Analyse MLP v1
+    results = []
+    # # Analyse MLP v1
     result_v1 = run_mlp_experiment(build_mlp_v1, "MLP_v1_Baseline")
     results.append(result_v1)
 
-    # Analyse MLP v2
+    # # Analyse MLP v2
     result_v2 = run_mlp_experiment(build_mlp_v2, "MLP_v2_Dropout")
     results.append(result_v2)
 
-    # Analyse et prédiction MLP final
+    # # Analyse et prédiction MLP final
     result_final = run_mlp_experiment(build_mlp_final, "MLP_Final", show_prediction_curve=True)
     results.append(result_final)
 
@@ -315,6 +412,6 @@ if __name__ == "__main__":
     print(f"{'Modèle':<25} {'Accuracy':<12} {'Loss':<10} {'Params':<10} {'Taille Ko':<10}")
     print("-"*70)
     for r in results:
-        acc = f"{r['accuracy']*100:.2f}%" if r['accuracy'] is not None else "N/A"
-        print(f"{r['model_name']:<25} {acc:<12} {r['loss']:<10.4f} {r['params']:<10} {r['size_kb']:<10.2f}")
+      acc = f"{r['accuracy']*100:.2f}%" if r['accuracy'] is not None else "N/A"
+      print(f"{r['model_name']:<25} {acc:<12} {r['loss']:<10.4f} {r['params']:<10} {r['size_kb']:<10.2f}")
     print("="*60)
