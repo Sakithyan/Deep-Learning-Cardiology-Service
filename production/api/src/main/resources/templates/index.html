@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ECG Front</title>
+  <style>
+    body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; background: #f4f6fb; color: #1f2937; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border: 1px solid #d9e0ea; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    h1, h2 { margin-top: 0; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    select, input[type=file], button { padding: 8px 10px; }
+    button { border: 0; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
+    button.secondary { background: #0f766e; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+    .err { color: #b91c1c; font-weight: 600; }
+    .ok { color: #166534; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>ECG Classification Front (Spring)</h1>
+    <p>Interface avec choix entre 3 modèles + upload signal.</p>
+    <p>Mode recommandé: une requête pour les 3 via classify-all.</p>
+  </div>
+
+  <div class="card">
+    <h2>Classify (1 modèle)</h2>
+    <form method="post" action="/classify" enctype="multipart/form-data">
+      <div class="row">
+        <label for="model">Modèle</label>
+        <select id="model" name="model">
+          <option th:each="m : ${modelOptions}" th:value="${m}" th:text="${m}" th:selected="${m == selectedModel}"></option>
+        </select>
+        <input type="file" name="signalFile" accept=".txt" required />
+        <button type="submit">Classify</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Classify-all (1 requête pour les 3)</h2>
+    <form method="post" action="/classify-all" enctype="multipart/form-data">
+      <div class="row">
+        <input type="file" name="signalFile" accept=".txt" required />
+        <button class="secondary" type="submit">Classify-all</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" th:if="${statusCode != null}">
+    <p class="ok">Status: <span th:text="${statusCode}"></span></p>
+  </div>
+
+  <div class="card" th:if="${error != null}">
+    <p class="err" th:text="${error}"></p>
+  </div>
+
+  <div class="card" th:if="${singleResult != null}">
+    <h2>Résultat single</h2>
+    <pre th:text="${singleResult}"></pre>
+  </div>
+
+  <div class="card" th:if="${allResult != null}">
+    <h2>Résultat all</h2>
+    <pre th:text="${allResult}"></pre>
+  </div>
+</div>
+</body>
+</html>
