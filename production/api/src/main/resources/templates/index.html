@@ -5,15 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ECG Front</title>
   <style>
-    body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; background: #f4f6fb; color: #1f2937; }
-    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
-    .card { background: #fff; border: 1px solid #d9e0ea; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    h1, h2 { margin-top: 0; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    select, input[type=file], button { padding: 8px 10px; }
-    button { border: 0; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
-    button.secondary { background: #0f766e; }
-    pre { white-space: pre-wrap; word-break: break-word; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+    body {
+      font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      background: #eceff3;
+      color: #1a2433;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #cad2de;
+      border-radius: 0;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+    }
+    h1, h2 {
+      margin-top: 0;
+      letter-spacing: 0.2px;
+      font-weight: 700;
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    select, input[type=file], button {
+      padding: 8px 10px;
+      border-radius: 0;
+      border: 1px solid #b7c2d0;
+      background: #fff;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    button {
+      border: 1px solid #1f5ac7;
+      background: #1f5ac7;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: #0c7a58;
+      border-color: #0c7a58;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f7f9fc;
+      border: 1px solid #d7deea;
+      border-radius: 0;
+      padding: 12px;
+    }
     .err { color: #b91c1c; font-weight: 600; }
     .ok { color: #166534; font-weight: 600; }
   </style>
@@ -23,7 +71,7 @@
   <div class="card">
     <h1>ECG Classification Front (Spring)</h1>
     <p>Interface avec choix entre 3 modèles + upload signal.</p>
-    <p>Mode recommandé: une requête pour les 3 via classify-all.</p>
+    <p>Mode global via endpoint classify-all disponible.</p>
   </div>
 
   <div class="card">
@@ -41,7 +89,7 @@
   </div>
 
   <div class="card">
-    <h2>Classify-all (1 requête pour les 3)</h2>
+    <h2>Classify-all</h2>
     <form method="post" action="/classify-all" enctype="multipart/form-data">
       <div class="row">
         <input type="file" name="signalFile" accept=".txt" required />
