@@ -32,3 +32,6 @@ Conformément aux consignes du prof,j'ai utilisé un peu l'IA pour gagner du tem
 * Gérer le **Reshaping** des données (2D pour le MLP, 3D pour CNN/RNN).
 * Coder proprement le chargement des fichiers TSV via **NumPy/Pandas**.
 
+## Screenshot production
+![Capture du site](production/Capture-Site.png)
+

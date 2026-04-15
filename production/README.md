@@ -1,19 +1,3 @@
-# Production
-
-Stack production Docker inspiree de dockerisation/cp7.
-
-## contenu
-- docker-compose.yml
-- api/
-- ia_service/
-- dockerisation/
-- artifacts/
-
-## architecture
-- conteneur 1: spring-front (port 8081)
-- conteneur 2: ia-service (port 5000)
-- reseau prive docker: ecg-private-net
-
 ## prerequis (linux/wsl2)
 ```bash
 cd production/dockerisation
@@ -29,12 +13,18 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Front API: http://localhost:8081/api
-IA API: http://localhost:5000
+
+## site web
+- URL du site: http://localhost:8081/
+
+
+## API
+- Front API: http://localhost:8081/api
+- IA API: http://localhost:5000
 
 Routes:
 - POST /api/classify (1 modele)
-- POST /api/classify-all (1 requete pour mlp+cnn+rnn)
+- POST /api/classify-all
 
 ## test rapide
 ```bash
@@ -46,3 +36,23 @@ Les modeles et metadata doivent etre montes dans production/artifacts:
 - cnn_model.keras
 - rnn_model.keras
 - preprocess.json
+
+## arreter le projet
+```bash
+cd production
+docker compose down
+```
+## contenu
+- docker-compose.yml
+- api/
+- ia_service/
+- dockerisation/
+- artifacts/
+
+## architecture
+- conteneur 1: spring-front (port 8081)
+- conteneur 2: ia-service (port 5000)
+- reseau prive docker: ecg-private-net
+
+## screenshot
+![Capture du site](Capture-Site.png)
