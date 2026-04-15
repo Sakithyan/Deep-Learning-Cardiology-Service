@@ -43,3 +43,8 @@ def build_rnn_final(input_shape):
         metrics=['accuracy', tf.keras.metrics.Recall(name='recall')]
     )
     return model
+
+
+# Backward-compatible API used by legacy scripts
+def build_rnn(input_shape):
+    return build_rnn_final(input_shape)
