@@ -18,7 +18,22 @@ services:
     networks:
       - ecg-private-net
 
+  spring-front:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: ecg-spring-front
+    environment:
+      AI_SERVICE_URL: http://ia-service:5000/predict
+      AI_SERVICE_URL_ALL: http://ia-service:5000/predict-all
+      SERVER_PORT: 8080
+    depends_on:
+      - ia-service
+    ports:
+      - "8081:8080"
+    networks:
+      - ecg-private-net
+
 networks:
   ecg-private-net:
-    name: ecg-private-net
     driver: bridge

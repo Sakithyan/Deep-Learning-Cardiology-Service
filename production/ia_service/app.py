@@ -14,7 +14,7 @@ def index():
         {
             "service": "ecg-ia",
             "status": "ready",
-            "message": "POST /predict avec un fichier 'signal' et model=mlp|cnn|rnn",
+            "message": "POST /predict ou /classify (single model), POST /predict-all (mlp+cnn+rnn)",
         }
     )
 
@@ -74,6 +74,33 @@ def predict():
 @app.post("/classify")
 def classify():
     return _predict_impl()
+
+
+@app.post("/predict-all")
+def predict_all():
+    incoming_file = (
+        request.files.get("signal")
+        or request.files.get("file")
+        or request.files.get("picture")
+    )
+
+    if incoming_file is None:
+        return jsonify({"error": "Aucun fichier recu. Utilisez le champ 'signal'."}), 400
+
+    file_bytes = incoming_file.read()
+    if not file_bytes:
+        return jsonify({"error": "Le fichier envoye est vide."}), 400
+
+    try:
+        runtime.initialize()
+        result = runtime.predict_all(file_bytes=file_bytes)
+        return jsonify(result)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"Erreur interne: {exc}"}), 500
 
 
 if __name__ == "__main__":

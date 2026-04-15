@@ -1,30 +1,44 @@
 # Production
 
-Base production docker pour le service IA ECG.
+Stack production Docker inspiree de dockerisation/cp7.
 
 ## contenu
 - docker-compose.yml
+- api/
 - ia_service/
 - dockerisation/
 - artifacts/
 
-## lancer le service
+## architecture
+- conteneur 1: spring-front (port 8081)
+- conteneur 2: ia-service (port 5000)
+- reseau prive docker: ecg-private-net
+
+## prerequis (linux/wsl2)
 ```bash
-cd production
-docker compose up --build
+cd production/dockerisation
+chmod +x preload session-base.sh scripts/check-env.sh
+./preload -d
+./scripts/check-env.sh
 ```
 
-API par defaut: http://localhost:5000
+## lancer le projet
+```bash
+cd production
+docker compose up --build -d
+docker compose ps
+```
+
+Front API: http://localhost:8081/api
+IA API: http://localhost:5000
 
 Routes:
-- GET /
-- GET /health
-- POST /predict
-- POST /classify
+- POST /api/classify (1 modele)
+- POST /api/classify-all (1 requete pour mlp+cnn+rnn)
 
 ## test rapide
 ```bash
-curl -X POST -F "model=cnn" -F "signal=@sample_ecg.txt" http://localhost:5000/predict
+curl -X POST -F "signal=@votre_signal.txt" http://localhost:8081/api/classify-all
 ```
 
 Les modeles et metadata doivent etre montes dans production/artifacts:

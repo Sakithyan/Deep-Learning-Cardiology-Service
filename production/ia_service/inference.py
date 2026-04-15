@@ -140,5 +140,35 @@ class InferenceRuntime:
             "docker_network": DOCKER_NETWORK_NAME,
         }
 
+    def predict_all(self, file_bytes: bytes) -> Dict[str, object]:
+        if not self._initialized:
+            self.initialize()
+
+        signal = self._read_signal(file_bytes)
+        threshold = self._metadata.threshold if self._metadata is not None else DEFAULT_THRESHOLD
+
+        results: Dict[str, object] = {}
+        errors: Dict[str, str] = {}
+
+        for model_name in ["mlp", "cnn", "rnn"]:
+            if model_name not in self._models and not self._load_model_if_available(model_name):
+                errors[model_name] = f"Modele indisponible: {DEFAULT_MODEL_PATHS[model_name]}"
+                continue
+
+            x = self._format_for_model(signal, model_name)
+            prob = float(self._models[model_name](x, training=False).numpy().reshape(-1)[0])
+            label = "malade" if prob >= threshold else "pas malade"
+            results[model_name] = {
+                "probability_malade": prob,
+                "prediction": label,
+            }
+
+        return {
+            "models": results,
+            "errors": errors,
+            "threshold": threshold,
+            "docker_network": DOCKER_NETWORK_NAME,
+        }
+
 
 runtime = InferenceRuntime()
