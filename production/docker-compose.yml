@@ -1,0 +1,24 @@
+services:
+  ia-service:
+    build:
+      context: ./ia_service
+      dockerfile: Dockerfile
+    container_name: ecg-ia-service
+    environment:
+      ECG_MODEL_MLP_PATH: /models/mlp_model.keras
+      ECG_MODEL_CNN_PATH: /models/cnn_model.keras
+      ECG_MODEL_RNN_PATH: /models/rnn_model.keras
+      ECG_METADATA_PATH: /models/preprocess.json
+      ECG_CLASSIFICATION_THRESHOLD: "0.5"
+      DOCKER_NETWORK_NAME: ecg-private-net
+    volumes:
+      - ./artifacts:/models:ro
+    ports:
+      - "5000:5000"
+    networks:
+      - ecg-private-net
+
+networks:
+  ecg-private-net:
+    name: ecg-private-net
+    driver: bridge

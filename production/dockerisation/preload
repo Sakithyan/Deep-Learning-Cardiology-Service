@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="d"
+NEED_RELOGIN=0
+DOCKER_INSTALLED_NOW=0
+IS_WSL=0
+
+usage() {
+  echo "Usage: ./preload [-e|-d|-f]"
+  echo "  -e  force Docker Engine (official repo)"
+  echo "  -d  default mode (install missing tools, keep existing)"
+  echo "  -f  use deprecated docker.io package"
+}
+
+while getopts ":edf" opt; do
+  case "$opt" in
+    e) MODE="e" ;;
+    d) MODE="d" ;;
+    f) MODE="f" ;;
+    *) usage; exit 1 ;;
+  esac
+done
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "[ERROR] This script is for Linux only."
+  exit 1
+fi
+
+if grep -qiE "microsoft|wsl" /proc/version 2>/dev/null || grep -qiE "microsoft|wsl" /proc/sys/kernel/osrelease 2>/dev/null; then
+  IS_WSL=1
+fi
+
+if ! command -v apt-get >/dev/null 2>&1; then
+  echo "[ERROR] apt-get not found. Use Ubuntu/Debian."
+  exit 1
+fi
+
+SUDO="sudo"
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  SUDO=""
+fi
+
+run() {
+  echo "[RUN] $*"
+  $*
+}
+
+install_if_missing() {
+  local pkg="$1"
+  if dpkg -s "$pkg" >/dev/null 2>&1; then
+    echo "[OK] $pkg already installed"
+  else
+    run $SUDO apt-get install -y "$pkg"
+  fi
+}
+
+cmd_ok() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+free_space_gb() {
+  local n
+  n=$(df --output=avail -BG / 2>/dev/null | tail -n 1 | tr -dc '0-9')
+  echo "${n:-0}"
+}
+
+echo "[INFO] mode=-$MODE"
+if [[ "$IS_WSL" -eq 1 ]]; then
+  echo "[INFO] WSL2 detected"
+  echo "[INFO] Preferred in WSL2: Docker Desktop + WSL integration"
+else
+  echo "[INFO] Native Linux/VM detected"
+fi
+
+SPACE_GB=$(free_space_gb)
+if [[ "$SPACE_GB" -lt 8 ]]; then
+  echo "[WARN] Low disk space: ${SPACE_GB}GB available (4GB+ downloads expected)"
+fi
+
+if ! curl -fsSL --max-time 8 https://download.docker.com >/dev/null 2>&1; then
+  echo "[WARN] Network test to download.docker.com failed"
+fi
+
+run $SUDO apt-get update
+
+for pkg in curl ca-certificates gnupg lsb-release git maven unzip; do
+  install_if_missing "$pkg"
+done
+
+if ! cmd_ok java; then
+  run $SUDO apt-get install -y default-jre
+fi
+
+if [[ "$MODE" == "e" ]]; then
+  run $SUDO apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc || true
+  run $SUDO install -m 0755 -d /etc/apt/keyrings
+  if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
+    run $SUDO curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    run $SUDO chmod a+r /etc/apt/keyrings/docker.asc
+  fi
+  ARCH="$(dpkg --print-architecture)"
+  CODENAME="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")"
+  REPO_LINE="deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${CODENAME} stable"
+  echo "$REPO_LINE" | $SUDO tee /etc/apt/sources.list.d/docker.list >/dev/null
+  run $SUDO apt-get update
+  run $SUDO apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  DOCKER_INSTALLED_NOW=1
+fi
+
+if [[ "$MODE" == "f" ]]; then
+  run $SUDO apt-get install -y docker.io docker-compose
+  DOCKER_INSTALLED_NOW=1
+fi
+
+if [[ "$MODE" == "d" ]]; then
+  if ! cmd_ok docker; then
+    if [[ "$IS_WSL" -eq 1 ]]; then
+      echo "[WARN] docker missing in WSL2. Recommended: Docker Desktop + WSL integration."
+      echo "[WARN] You can force Linux packages with -e or -f if needed."
+    else
+      run $SUDO apt-get install -y docker.io docker-compose-plugin
+      DOCKER_INSTALLED_NOW=1
+    fi
+  fi
+fi
+
+if cmd_ok docker; then
+  echo "[OK] docker command found"
+else
+  if [[ "$IS_WSL" -eq 1 ]]; then
+    echo "[ERROR] docker command still missing in WSL2"
+  else
+    echo "[ERROR] docker command still missing"
+  fi
+  exit 1
+fi
+
+if ! groups "$USER" | grep -q '\bdocker\b'; then
+  run $SUDO usermod -aG docker "$USER"
+  NEED_RELOGIN=1
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  run $SUDO systemctl enable docker || true
+  run $SUDO systemctl start docker || true
+fi
+
+echo
+echo "===== QUICK CHECK ====="
+for c in curl git mvn java docker; do
+  if cmd_ok "$c"; then
+    echo "[OK] $c"
+  else
+    echo "[MISSING] $c"
+  fi
+done
+
+if cmd_ok docker; then
+  docker --version || true
+  docker compose version || true
+fi
+
+if [[ "$DOCKER_INSTALLED_NOW" -eq 1 ]]; then
+  echo "[NOTE] Docker was installed now. A reboot may be required on some systems."
+fi
+
+if [[ "$NEED_RELOGIN" -eq 1 ]]; then
+  echo "[NOTE] Logout/login needed for docker group permissions."
+fi
+
+echo "[DONE] preload finished"
